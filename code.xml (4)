@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string-array name="autoplay_modes">
+        <item>Normal</item>
+        <item>Fast</item>
+        <item>Pro Player</item>
+    </string-array>
+    <string-array name="break_types">
+        <item>Standard</item>
+        <item>Golden Shot</item>
+    </string-array>
+    <string-array name="shard_positions">
+        <item>Center 1</item>
+        <item>Position 2</item>
+        <item>Position 3</item>
+        <item>Last 4</item>
+    </string-array>
+    <string-array name="queue_modes">
+        <item>Mixer Join</item>
+        <item>Single Table</item>
+    </string-array>
+    <string-array name="tables">
+        <item>Mumbai</item><item>Shanghai</item><item>Rome</item>
+        <item>Berlin</item><item>Toronto</item><item>Las Vegas</item>
+        <item>Miami</item><item>Sydney</item><item>Jakarta</item>
+    </string-array>
+    <string-array name="line_colors">
+        <item>Green</item><item>Red</item><item>Blue</item>
+        <item>Yellow</item><item>Cyan</item><item>Magenta</item><item>White</item>
+    </string-array>
+    <string-array name="line_thickness">
+        <item>Thin</item><item>Medium</item><item>Thick</item>
+    </string-array>
+</resources>

@@ -1,0 +1,123 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="280dp"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:background="#D91a1a2e"
+    android:elevation="10dp">
+
+    <LinearLayout
+        android:id="@+id/dragHandle"
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:padding="8dp"
+        android:background="#2a2a4e">
+
+        <TextView
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:text="🐍"
+            android:textSize="20sp"
+            android:gravity="center" />
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="Viper Engine"
+            android:textColor="#00ff88"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            android:gravity="center"
+            android:padding="8dp" />
+
+        <TextView
+            android:text="v2.1"
+            android:textColor="#666666"
+            android:textSize="10sp"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/menuPanel"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:visibility="visible">
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="40dp"
+            android:text="  ⚡ ENGINE ACTIVE"
+            android:textColor="#00ff88"
+            android:textSize="12sp"
+            android:textStyle="bold"
+            android:gravity="center_vertical"
+            android:background="#1e1e3a" />
+
+        <ScrollView
+            android:layout_width="match_parent"
+            android:layout_height="300dp"
+            android:padding="8dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="[ BASIC SETTINGS ]"
+                    android:textColor="#00ff88"
+                    android:textSize="12sp"
+                    android:textStyle="bold"
+                    android:padding="8dp"
+                    android:background="#1a1a2e"
+                    android:layout_marginTop="4dp" />
+
+                <include layout="@layout/setting_row_switch" android:id="@+id/rowShowLine" />
+                <include layout="@layout/setting_row_switch" android:id="@+id/rowShowPockets" />
+                <include layout="@layout/setting_row_switch" android:id="@+id/rowShowPower" />
+                <include layout="@layout/setting_row_switch" android:id="@+id/rowReboundLines" />
+                <include layout="@layout/setting_row_switch" android:id="@+id/rowShowSpin" />
+                <include layout="@layout/setting_row_switch" android:id="@+id/rowSafeMode" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="[ AUTOPLAY ]"
+                    android:textColor="#00ff88"
+                    android:textSize="12sp"
+                    android:textStyle="bold"
+                    android:padding="8dp"
+                    android:background="#1a1a2e"
+                    android:layout_marginTop="4dp" />
+
+                <include layout="@layout/setting_row_switch" android:id="@+id/rowEnableAutoplay" />
+                <include layout="@layout/setting_row_switch" android:id="@+id/rowForceBreak" />
+                <include layout="@layout/setting_row_switch" android:id="@+id/rowAutoQueue" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="[ QUEUE ]"
+                    android:textColor="#00ff88"
+                    android:textSize="12sp"
+                    android:textStyle="bold"
+                    android:padding="8dp"
+                    android:background="#1a1a2e"
+                    android:layout_marginTop="4dp" />
+
+                <include layout="@layout/setting_row_switch" android:id="@+id/rowAutoReconnect" />
+                <include layout="@layout/setting_row_switch" android:id="@+id/rowJump" />
+                <include layout="@layout/setting_row_switch" android:id="@+id/rowSpin" />
+                <include layout="@layout/setting_row_switch" android:id="@+id/rowAutoSpin" />
+
+            </LinearLayout>
+        </ScrollView>
+    </LinearLayout>
+</LinearLayout>

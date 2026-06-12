@@ -1,0 +1,150 @@
+package com.viperengine
+
+import android.app.*
+import android.content.*
+import android.graphics.*
+import android.os.*
+import android.view.*
+import android.widget.*
+
+class OverlayService : Service() {
+
+    companion object { var instance: OverlayService? = null }
+
+    private lateinit var windowManager: WindowManager
+    private lateinit var overlayView: View
+    private lateinit var cvEngine: CVEngine
+    private lateinit var screenCapture: ScreenCaptureManager
+
+    val settings = EngineSettings()
+
+    override fun onCreate() {
+        super.onCreate()
+        instance = this
+        windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
+        cvEngine = CVEngine()
+        screenCapture = ScreenCaptureManager(this)
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val ch = NotificationChannel("viper_channel", "Viper Engine", NotificationManager.IMPORTANCE_LOW)
+            (getSystemService(NOTIFICATION_SERVICE) as NotificationManager).createNotificationChannel(ch)
+        }
+        startForeground(1, Notification.Builder(this, "viper_channel")
+            .setContentTitle("Viper Engine").setContentText("Active")
+            .setSmallIcon(android.R.drawable.ic_menu_compass).build())
+    }
+
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        showFloatingPanel()
+        startAimOverlay()
+        if (intent?.hasExtra("mediaProjectionResultCode") == true) {
+            val rc = intent.getIntExtra("mediaProjectionResultCode", 0)
+            val d = intent.getSerializableExtra("mediaProjectionData") as? Intent
+            if (d != null) screenCapture.startCapture(d, rc)
+        }
+        return START_STICKY
+    }
+
+    private fun showFloatingPanel() {
+        val params = WindowManager.LayoutParams(
+            280, WindowManager.LayoutParams.WRAP_CONTENT,
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
+                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+            else WindowManager.LayoutParams.TYPE_PHONE,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+            PixelFormat.TRANSLUCENT
+        )
+        params.gravity = Gravity.TOP or Gravity.START
+        params.x = 50; params.y = 200
+
+        overlayView = LayoutInflater.from(this).inflate(R.layout.overlay_widget, null)
+        setupSwitches()
+        windowManager.addView(overlayView, params)
+
+        overlayView.findViewById<View>(R.id.dragHandle).setOnTouchListener { _, event ->
+            when (event.action) {
+                MotionEvent.ACTION_DOWN -> true
+                MotionEvent.ACTION_MOVE -> {
+                    params.x = (event.rawX - 140).toInt()
+                    params.y = (event.rawY - 24).toInt()
+                    windowManager.updateViewLayout(overlayView, params); true
+                }
+                else -> false
+            }
+        }
+    }
+
+    private fun setupSwitches() {
+        fun findSwitch(parentId: Int) = overlayView.findViewById<View>(parentId).findViewById<Switch>(R.id.toggle)
+        
+        findSwitch(R.id.rowShowLine).setOnCheckedChangeListener { _, b -> settings.showLine = b; aimCanvas.invalidate() }
+        findSwitch(R.id.rowShowPockets).setOnCheckedChangeListener { _, b -> settings.showPockets = b; aimCanvas.invalidate() }
+        findSwitch(R.id.rowShowPower).setOnCheckedChangeListener { _, b -> settings.showPower = b; aimCanvas.invalidate() }
+        findSwitch(R.id.rowReboundLines).setOnCheckedChangeListener { _, b -> settings.showRebound = b; aimCanvas.invalidate() }
+        findSwitch(R.id.rowShowSpin).setOnCheckedChangeListener { _, b -> settings.showSpin = b; aimCanvas.invalidate() }
+        findSwitch(R.id.rowSafeMode).setOnCheckedChangeListener { _, b -> settings.safeMode = b }
+        findSwitch(R.id.rowEnableAutoplay).setOnCheckedChangeListener { _, b -> settings.autoplayEnabled = b }
+        findSwitch(R.id.rowForceBreak).setOnCheckedChangeListener { _, b -> settings.forceBreak = b }
+        findSwitch(R.id.rowAutoQueue).setOnCheckedChangeListener { _, b -> settings.autoQueueEnabled = b }
+        findSwitch(R.id.rowAutoReconnect).setOnCheckedChangeListener { _, b -> settings.autoReconnect = b }
+        findSwitch(R.id.rowJump).setOnCheckedChangeListener { _, b -> settings.jumpEnabled = b }
+        findSwitch(R.id.rowSpin).setOnCheckedChangeListener { _, b -> settings.spinEnabled = b }
+        findSwitch(R.id.rowAutoSpin).setOnCheckedChangeListener { _, b -> settings.autoSpin = b }
+    }
+
+    private lateinit var aimCanvas: View
+    private fun startAimOverlay() {
+        val p = WindowManager.LayoutParams(
+            WindowManager.LayoutParams.MATCH_PARENT,
+            WindowManager.LayoutParams.MATCH_PARENT,
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
+                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+            else WindowManager.LayoutParams.TYPE_PHONE,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
+                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+            PixelFormat.TRANSLUCENT
+        )
+        aimCanvas = object : View(this) {
+            private val paint = Paint().apply { style = Paint.Style.STROKE; isAntiAlias = true }
+            override fun onDraw(canvas: Canvas) {
+                super.onDraw(canvas)
+                if (!settings.showLine) return
+                paint.color = settings.lineColor; paint.strokeWidth = settings.lineThickness
+                cvEngine.currentAimLine?.let { (s, e) ->
+                    canvas.drawLine(s.x, s.y, e.x, e.y, paint)
+                }
+                if (settings.showRebound) {
+                    cvEngine.reboundLines?.forEach { l ->
+                        val rp = Paint(paint).apply { alpha = 120; pathEffect = DashPathEffect(floatArrayOf(10f,10f),0f) }
+                        canvas.drawLine(l.first.x, l.first.y, l.second.x, l.second.y, rp)
+                    }
+                }
+                if (settings.showPockets) {
+                    val pp = Paint().apply { style = Paint.Style.FILL; color = Color.argb(80,255,200,0) }
+                    cvEngine.pockets?.forEach { p -> canvas.drawCircle(p.x, p.y, 30f, pp) }
+                }
+            }
+        }
+        windowManager.addView(aimCanvas, p)
+    }
+
+    fun getEngineSettings() = settings
+    fun getCVEngine() = cvEngine
+    fun getScreenCapture() = screenCapture
+    override fun onBind(intent: Intent?) = null
+}
+
+data class EngineSettings(
+    var showLine: Boolean = true, var showPockets: Boolean = true,
+    var showPower: Boolean = true, var showRebound: Boolean = true,
+    var showSpin: Boolean = false, var safeMode: Boolean = true,
+    var lineOutFix: Boolean = false, var jumpEnabled: Boolean = false,
+    var spinEnabled: Boolean = false, var autoSpin: Boolean = false,
+    var autoplayEnabled: Boolean = false, var autoplayMode: Int = 0,
+    var forceBreak: Boolean = false, var illegalBreak: Boolean = false,
+    var breakType: Int = 0, var coinPercent: Int = 30,
+    var autoQueueEnabled: Boolean = false, var queueMode: Int = 0,
+    var selectedTable: Int = 0, var autoReconnect: Boolean = true,
+    var lineColor: Int = Color.GREEN, var lineThickness: Float = 4f
+)

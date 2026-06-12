@@ -1,0 +1,76 @@
+package com.viperengine
+
+import android.graphics.*
+import org.opencv.android.*
+import org.opencv.core.*
+import org.opencv.imgproc.*
+import kotlin.math.*
+
+class CVEngine {
+    private val hsvLower = Scalar(35.0, 40.0, 40.0)
+    private val hsvUpper = Scalar(85.0, 255.0, 255.0)
+    private var tableRect: Rect? = null; private var cueBall: Point? = null
+    private var pocketPoints: List<Point> = emptyList()
+
+    var currentAimLine: Pair<PointF, PointF>? = null
+    var reboundLines: List<Pair<PointF, PointF>>? = null
+    var pockets: List<PointF>? = null
+    var currentPower: Float? = null
+
+    fun analyzeFrame(bitmap: Bitmap, isPlayersTurn: Boolean): ShotData? {
+        if (!isPlayersTurn) return null
+        val src = Mat(); Utils.bitmapToMat(bitmap, src)
+        val hsv = Mat(); Imgproc.cvtColor(src, hsv, Imgproc.COLOR_RGB2HSV)
+        val mask = Mat(); Core.inRange(hsv, hsvLower, hsvUpper, mask)
+        val contours = ArrayList<MatOfPoint>(); val hier = Mat()
+        Imgproc.findContours(mask, contours, hier, Imgproc.RETR_EXTERNAL, Imgproc.CHAIN_APPROX_SIMPLE)
+        val tc = contours.maxByOrNull { Imgproc.contourArea(it) } ?: return null
+        tableRect = Imgproc.boundingRect(tc)
+
+        val gray = Mat(); Imgproc.cvtColor(src, gray, Imgproc.COLOR_RGB2GRAY)
+        Imgproc.GaussianBlur(gray, gray, Size(9.0, 9.0), 2.0)
+        val circles = Mat(); Imgproc.HoughCircles(gray, circles, Imgproc.HOUGH_GRADIENT, 1.0, 30.0, 100.0, 30.0, 10, 30)
+
+        cueBall = null
+        for (i in 0 until circles.cols()) {
+            val d = circles.get(0, i); val c = Point(d[0], d[1]); val r = d[2]
+            val mask2 = Mat.zeros(src.size(), CvType.CV_8UC1)
+            Imgproc.circle(mask2, c, r.toInt(), Scalar(255.0), -1)
+            val mean = Core.mean(src, mask2); mask2.release()
+            if (mean.`val`[0] > 200.0 && mean.`val`[1] > 200.0 && mean.`val`[2] > 200.0) cueBall = c
+        }
+
+        val r = tableRect!!; val o = 20
+        pocketPoints = listOf(Point(r.x-o,r.y-o), Point(r.x+r.width/2,r.y-o*2), Point(r.x+r.width+o,r.y-o),
+            Point(r.x-o,r.y+r.height+o), Point(r.x+r.width/2,r.y+r.height+o*2), Point(r.x+r.width+o,r.y+r.height+o))
+        pockets = pocketPoints.map { PointF(it.x.toFloat(), it.y.toFloat()) }
+        return calculateBestShot()
+    }
+
+    private fun calculateBestShot(): ShotData? {
+        val cue = cueBall ?: return null
+        var best: ShotData? = null; var bestScore = Double.MAX_VALUE
+
+        for (pocket in pocketPoints) {
+            val ball = Point(tableRect!!.x + 200, tableRect!!.y + 200)
+            val tp = Point(pocket.x - ball.x, pocket.y - ball.y)
+            val dist = sqrt(tp.x*tp.x+tp.y*tp.y); val pa = atan2(tp.y, tp.x)
+            val ix = ball.x - 10*cos(pa); val iy = ball.y - 10*sin(pa)
+            val ti = Point(ix - cue.x, iy - cue.y); val cd = sqrt(ti.x*ti.x+ti.y*ti.y)
+            val score = cd + dist
+            if (score < bestScore) {
+                bestScore = score
+                currentPower = (cd.coerceIn(50.0,800.0)/800.0).toFloat().coerceIn(0.2f,0.95f)
+                val s = PointF(cue.x.toFloat(), cue.y.toFloat())
+                val e = PointF(ix.toFloat(), iy.toFloat())
+                currentAimLine = s to e
+                reboundLines = listOf(e to PointF(ix.toFloat()+100, iy.toFloat()))
+                best = ShotData(s, e, PointF(pocket.x.toFloat(),pocket.y.toFloat()), currentPower!!,
+                    listOf(s, e, PointF(pocket.x.toFloat(),pocket.y.toFloat())))
+            }
+        }
+        return best
+    }
+}
+
+data class ShotData(val aimStart: PointF, val aimEnd: PointF, val targetPocket: PointF, val power: Float, val shotPath: List<PointF>)

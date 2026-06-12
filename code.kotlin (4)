@@ -1,0 +1,32 @@
+package com.viperengine
+
+import android.content.*
+import android.graphics.*
+import android.hardware.display.*
+import android.media.*
+import android.media.projection.*
+import android.os.*
+
+class ScreenCaptureManager(private val ctx: Context) {
+    private var mp: MediaProjection? = null; private var vd: VirtualDisplay? = null
+    private var ir: ImageReader? = null
+    @Volatile private var latest: Bitmap? = null
+    private val dm = ctx.resources.displayMetrics
+
+    fun startCapture(data: Intent, rc: Int) {
+        val pm = ctx.getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
+        mp = pm.getMediaProjection(rc, data)
+        ir = ImageReader.newInstance(dm.widthPixels, dm.heightPixels, PixelFormat.RGBA_8888, 2)
+        ir?.setOnImageAvailableListener({ r ->
+            r.acquireLatestImage()?.let { img ->
+                val buf = img.planes[0].buffer; val bmp = Bitmap.createBitmap(img.width, img.height, Bitmap.Config.ARGB_8888)
+                bmp.copyPixelsFromBuffer(buf); latest = bmp; img.close()
+            }
+        }, Handler(Looper.getMainLooper()))
+        vd = mp?.createVirtualDisplay("ViperCapture", dm.widthPixels, dm.heightPixels, dm.densityDpi,
+            DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR, ir?.surface, null, null)
+    }
+
+    fun getLatestFrame() = latest
+    fun stop() { vd?.release(); mp?.stop(); ir?.close() }
+}

@@ -1,0 +1,96 @@
+package com.viperengine
+
+import android.accessibilityservice.AccessibilityService
+import android.accessibilityservice.GestureDescription
+import android.graphics.Path
+import android.util.DisplayMetrics
+import android.view.accessibility.AccessibilityEvent
+import android.view.accessibility.AccessibilityNodeInfo
+import androidx.accessibilityservice.AccessibilityServiceInfo
+import kotlinx.coroutines.*
+
+class GameAccessibilityService : AccessibilityService() {
+    private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
+    private var displayMetrics = DisplayMetrics()
+    private var gameRunning = false
+
+    override fun onServiceConnected() {
+        super.onServiceConnected()
+        displayMetrics = resources.displayMetrics
+        val info = AccessibilityServiceInfo().apply {
+            eventTypes = AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED or AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED
+            feedbackType = AccessibilityServiceInfo.FEEDBACK_GENERIC
+            flags = AccessibilityServiceInfo.FLAG_REPORT_VIEW_IDS or AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS
+            notificationTimeout = 100
+        }
+        serviceInfo = info
+    }
+
+    override fun onAccessibilityEvent(event: AccessibilityEvent?) {
+        if (event?.packageName != "com.miniclip.eightballpool") return
+        val engine = OverlayService.instance ?: return
+        val settings = engine.getEngineSettings()
+        val cn = event.className?.toString() ?: ""
+
+        if (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
+            if (cn.contains("Result") || cn.contains("GameOver")) {
+                gameRunning = false
+                if (settings.autoplayEnabled) scope.launch {
+                    delay(2000); autoTap(); delay(1500); autoTap()
+                }
+            }
+            if (cn.contains("GameTable") || cn.contains("TableScene")) {
+                gameRunning = true
+                if (settings.autoplayEnabled) scope.launch {
+                    delay(2500); autoPlay(engine)
+                }
+            }
+        }
+    }
+
+    private suspend fun autoPlay(engine: OverlayService) {
+        while (gameRunning && engine.getEngineSettings().autoplayEnabled) {
+            delay(2000)
+            val bmp = engine.getScreenCapture().getLatestFrame() ?: continue
+            val shot = engine.getCVEngine().analyzeFrame(bmp, true) ?: continue
+            delay(if (engine.getEngineSettings().safeMode) (800..1500).random() else (200..500).random())
+
+            val sx = displayMetrics.widthPixels / 1080f
+            val sy = displayMetrics.heightPixels / 1920f
+            val cx = shot.aimStart.x * sx; val cy = shot.aimStart.y * sy
+            val ax = shot.aimEnd.x * sx; val ay = shot.aimEnd.y * sy
+
+            val aimG = GestureDescription.Builder().addStroke(
+                GestureDescription.StrokeDescription(Path().apply { moveTo(cx,cy); lineTo(ax,ay) }, 0, 300)
+            ).build()
+            dispatchGesture(aimG, null, null); delay(500)
+
+            val px = cx - (ax - cx) * shot.power * 0.4f; val py = cy - (ay - cy) * shot.power * 0.4f
+            val powG = GestureDescription.Builder().addStroke(
+                GestureDescription.StrokeDescription(Path().apply { moveTo(cx,cy); lineTo(px,py) }, 0, 400)
+            ).build()
+            dispatchGesture(powG, null, null); delay(200)
+
+            dispatchGesture(GestureDescription.Builder().addStroke(
+                GestureDescription.StrokeDescription(Path().apply { moveTo(cx,cy) }, 0, 30)
+            ).build(), null, null)
+            delay(3000)
+        }
+    }
+
+    private fun autoTap() {
+        val root = rootInActiveWindow ?: return
+        fun scan(n: AccessibilityNodeInfo?) {
+            if (n == null) return
+            val t = n.text?.toString()?.lowercase() ?: ""
+            val d = n.contentDescription?.toString()?.lowercase() ?: ""
+            if (listOf("play again","find match","ok","continue","play","next","accept").any { it in t || it in d })
+                if (n.isClickable) { n.performAction(AccessibilityNodeInfo.ACTION_CLICK); return }
+            for (i in 0 until n.childCount) scan(n.getChild(i))
+        }
+        scan(root)
+    }
+
+    override fun onInterrupt() {}
+    override fun onDestroy() { scope.cancel(); super.onDestroy() }
+}
